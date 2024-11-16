@@ -1,101 +1,271 @@
-import Image from "next/image";
+import {
+  CHAIN_NAMESPACES,
+  IProvider,
+  WALLET_ADAPTERS,
+  WEB3AUTH_NETWORK,
+} from "@web3auth/base";
+import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
+import { Web3AuthNoModal } from "@web3auth/no-modal";
+import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
+import { useEffect, useState } from "react";
+import EthereumRPC from "./ethereumRPC";
+import "./App.css";
+import SignClient from "./signClient";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+const clientId =
+  "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+const chainConfig = {
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  chainId: "0xaa36a7",
+  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+  displayName: "Ethereum Sepolia Testnet",
+  blockExplorerUrl: "https://sepolia.etherscan.io",
+  ticker: "ETH",
+  tickerName: "Ethereum",
+  logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+};
+
+const privateKeyProvider = new EthereumPrivateKeyProvider({
+  config: { chainConfig },
+});
+
+const web3auth = new Web3AuthNoModal({
+  clientId,
+  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
+  privateKeyProvider,
+});
+
+const openloginAdapter = new OpenloginAdapter();
+web3auth.configureAdapter(openloginAdapter);
+
+function App() {
+  const [provider, setProvider] = useState<IProvider | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await web3auth.init();
+        setProvider(web3auth.provider);
+
+        if (web3auth.connected) {
+          setLoggedIn(true);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    init();
+  }, []);
+
+  const login = async () => {
+    const web3authProvider = await web3auth.connectTo(
+      WALLET_ADAPTERS.OPENLOGIN,
+      {
+        loginProvider: "google",
+      }
+    );
+
+    setProvider(web3authProvider);
+
+    if (web3auth.connected) {
+      setLoggedIn(true);
+    }
+  };
+
+  const getUserInfo = async () => {
+    const user = await web3auth.getUserInfo();
+    uiConsole(user);
+  };
+
+  const logout = async () => {
+    await web3auth.logout();
+    setProvider(null);
+    setLoggedIn(false);
+    uiConsole("logged out");
+  };
+
+  const getAccounts = async () => {
+    if (!provider) {
+      uiConsole("Provider not initialized yet");
+      return;
+    }
+
+    const ethereumRPC = new EthereumRPC(provider!);
+    const address = await ethereumRPC.getAccount();
+    uiConsole(address);
+  };
+
+  const getBalance = async () => {
+    if (!provider) {
+      uiConsole("Provider not initialized yet");
+      return;
+    }
+
+    const ethereumRPC = new EthereumRPC(provider!);
+    const balance = await ethereumRPC.fetchBalance();
+    uiConsole(balance);
+  };
+
+  const signMessage = async () => {
+    if (!provider) {
+      uiConsole("Provider not initialized yet");
+      return;
+    }
+
+    const ethereumRPC = new EthereumRPC(provider!);
+    const signedMessage = await ethereumRPC.signMessage();
+    uiConsole(signedMessage);
+  };
+
+  const sendTransaction = async () => {
+    if (!provider) {
+      uiConsole("Provider not initialized yet");
+      return;
+    }
+
+    const ethereumRPC = new EthereumRPC(provider!);
+    uiConsole("Sending Transaction...");
+
+    const hash = await ethereumRPC.sendTransaction();
+    uiConsole(hash);
+  };
+
+  const createAttestation = async () => {
+    if (!provider) {
+      uiConsole("Provider not initialized yet");
+      return;
+    }
+
+    const ethereumRPC = new EthereumRPC(provider!);
+    const signClient = new SignClient(ethereumRPC.walletClient);
+    uiConsole("Creating Attestation...");
+
+    const address = await ethereumRPC.getAccount();
+    const response = await signClient.attest(address);
+
+    uiConsole({
+      hash: response.txHash,
+      attestationId: response.attestationId,
+    });
+  };
+
+  const fetchAccountAttestations = async () => {
+    if (!provider) {
+      uiConsole("Provider not initialized yet");
+      return;
+    }
+
+    const ethereumRPC = new EthereumRPC(provider!);
+    const signClient = new SignClient(ethereumRPC.walletClient);
+    uiConsole("Fetching Attestation...");
+
+    const address = await ethereumRPC.getAccount();
+    const response = await signClient.fetchAccountAttestations(address);
+
+    uiConsole(response);
+  };
+
+  function uiConsole(...args: any[]): void {
+    const el = document.querySelector("#console>p");
+    if (el) {
+      el.innerHTML = JSON.stringify(args || {}, null, 2);
+      console.log(...args);
+    }
+  }
+
+  const loggedInView = (
+    <>
+      <div className="flex-container">
+        <div>
+          <button onClick={getUserInfo} className="card">
+            Get User Info
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
+        <div>
+          <button onClick={getAccounts} className="card">
+            Get Accounts
+          </button>
+        </div>
+        <div>
+          <button onClick={getBalance} className="card">
+            Get Balance
+          </button>
+        </div>
+        <div>
+          <button onClick={signMessage} className="card">
+            Sign Message
+          </button>
+        </div>
+        <div>
+          <button onClick={sendTransaction} className="card">
+            Send Transaction
+          </button>
+        </div>
+        <div>
+          <button onClick={createAttestation} className="card">
+            Create attestation
+          </button>
+        </div>
+        <div>
+          <button onClick={fetchAccountAttestations} className="card">
+            Fetch attestations
+          </button>
+        </div>
+        <div>
+          <button onClick={logout} className="card">
+            Log Out
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  const unloggedInView = (
+    <button onClick={login} className="card">
+      Login
+    </button>
+  );
+
+  return (
+    <div className="container">
+      <h1 className="title">
         <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
           target="_blank"
-          rel="noopener noreferrer"
+          href="https://web3auth.io/docs/sdk/pnp/web/no-modal"
+          rel="noreferrer"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
+          Web3Auth{" "}
         </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
+        &
+        <a target="_blank" href="https://docs.sign.global/" rel="noreferrer">
+          {" "}
+          Sign Protocol{" "}
         </a>
+        Quick Start
+      </h1>
+
+      <div className="grid">{loggedIn ? loggedInView : unloggedInView}</div>
+      <div id="console" style={{ whiteSpace: "pre-line" }}>
+        <p style={{ whiteSpace: "pre-line" }}></p>
+      </div>
+
+      <footer className="footer">
         <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          href="https://github.com/Web3Auth/web3auth-pnp-examples/tree/main/web-no-modal-sdk/quick-starts/react-no-modal-quick-start"
           target="_blank"
           rel="noopener noreferrer"
         >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
+          Source code
+        </a>
+        <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FWeb3Auth%2Fweb3auth-pnp-examples%2Ftree%2Fmain%2Fweb-modal-sdk%2Fquick-starts%2Freact-modal-quick-start&project-name=w3a-evm-modal&repository-name=w3a-evm-modal">
+          <img src="https://vercel.com/button" alt="Deploy with Vercel" />
         </a>
       </footer>
     </div>
   );
 }
+
+export default App;
